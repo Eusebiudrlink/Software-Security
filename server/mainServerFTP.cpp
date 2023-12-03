@@ -5,8 +5,9 @@
 #include <vector>
 #include <fstream>
 #include "users.cpp"
-
+#include "fileManager.cpp"
 using namespace std;
+
 
 
 
@@ -14,6 +15,7 @@ int main() {
     const int serverPort = 21;  // Portul standard FTP
 
     Users users ;
+    FileManager fileManager;
     // Deschide un socket pentru conexiuni de la clienți
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
@@ -103,6 +105,12 @@ int main() {
                 const char* response530 = "530 Not logged in\r\n";
                   send(clientSocket, response530, strlen(response530), 0);
         }
+        else if (strncmp(buffer, "RETR", 4) == 0)
+        {
+            fileManager.sendFile(clientSocket,parameter);
+            cout<<"Am trimis file ul "<<parameter<<endl;
+        }
+
         else {
             const char* response500 = "500 Syntax error, command unrecognized.Sau neimplementata!\r\n";
                   send(clientSocket, response500, strlen(response500), 0);

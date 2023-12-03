@@ -2,6 +2,8 @@
 #include <cstring>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "fileManager.cpp"
+
 using namespace std;
 
 int main() {
@@ -36,17 +38,27 @@ int main() {
 
     std::string cmd;
     char buffer[1024];
+    FileManager fileManager;
 
 while(true)
 {
      std::cout << "Scrieti o comanda pentru Serverul FTP:"<<endl; 
     std::getline(std::cin, cmd);
+    const char* parameter = cmd.c_str() + 5;
+
     if (send(clientSocket, cmd.c_str(), cmd.size(), 0) == -1) {
             perror("Eroare la trimiterea comenzii ");
             close(clientSocket);
             return -1;
         }
 
+        if (strncmp(cmd.c_str() , "RETR", 4) == 0)
+        {
+             // Așteaptă răspunsul de la server
+            fileManager.receiveFile(clientSocket,parameter);
+            cout<<"Am primit file ul " << parameter << endl;
+        }
+        else{
         // Așteaptă răspunsul de la server
         int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
         if (bytesRead <= 0) {
@@ -57,7 +69,9 @@ while(true)
 
         // Afișează răspunsul de la server
         buffer[bytesRead] = '\0';
-        std::cout << "Răspuns de la server: " << buffer;
+        std::cout << "Răspuns de la server: " << buffer<<endl;
+        }
+       
 }
     
 
