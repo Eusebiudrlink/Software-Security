@@ -5,9 +5,13 @@
 #include <vector>
 #include <thread>
 #include <fstream>
+#include <filesystem>
 #include "users.cpp"
 #include "fileManager.cpp"
 using namespace std;
+
+//namespace fs = std::experimental::filesystem;
+namespace fs = std::filesystem;
 
 /*
 2 sockets are open on the server side for passive mode:
@@ -16,17 +20,20 @@ Control Socket: Listens on port 21 for command communication.
 Data Socket: Listens on a dynamically assigned port for passive mode data transfer.
 */
 
-
-// Function prototype for clientHandler
-//void clientHandler(int clientSocket, Users& users, FileManager& fileManager);
-
     // Funcție pentru a gestiona un client într-un fir de execuție separat
     void clientHandler(int clientSocket, Users& users, FileManager& fileManager) {
         int passiveSocket = socket(AF_INET, SOCK_STREAM, 0);
         int passiveClientSocket = -1; // initialize to an invalid value
         bool passiveConnectionEstablished = false;
 
+        string clientUsername;  
+        fs::path currentPath = fs::current_path();
+
+        // Navigate back one step
+        fs::path parentPath = currentPath.parent_path();
         
+        fs::path rootDirectory = parentPath / "files";
+        string clientDirectory="";
         
         while(true) {
         // Buclă de ascultare pentru comenzi
@@ -41,7 +48,7 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
         // Adaugă terminarea șirului la sfârșitul datelor primite pentru a le interpreta corect ca șir de caractere
         buffer[bytesRead] = '\0';   
 
-        const char* parameter = buffer + 5; // Saltă peste comanda "USER PASS"
+        const char* parameter = buffer + 5; // Saltă peste comanda "USER PASS LIST"
 
         // Identifică comanda primită
         if (strncmp(buffer, "USER", 4) == 0) {
@@ -49,6 +56,7 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
             std::cout << "Comanda USER primita: " << buffer << std::endl;
             if(users.checkUser(parameter))
             {
+                  clientUsername = parameter;
                   const char* response331 = "331 User name okay, need password.\r\n";
                   send(clientSocket, response331, strlen(response331), 0);
             }
@@ -64,6 +72,12 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
             std::cout << "Comanda PASS primita: " << buffer << std::endl;
             if(users.checkPass(parameter))
             {
+                // if the password if ok, we can use update the fake root
+                clientDirectory = rootDirectory / clientUsername;
+                
+                // Set the working directory to the client's directory
+                chdir(clientDirectory.c_str());
+            
                 const char* response230 = "230 User logged in, proceed.\r\n";
                 send(clientSocket, response230, strlen(response230), 0);
             }
@@ -149,8 +163,14 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
             const char* response150 = "150 Here comes the directory listing.\n";
             send(clientSocket, response150, strlen(response150), 0);
             
+            // if there was a directory provided it would be in the parameter variable
+            // Construct the command to list files in the specified directory
+            string directoryName = parameter;
+            cout<<directoryName<<endl;
+            std::string listCommand = "ls -l " + directoryName;
+            FILE* pipe = popen(listCommand.c_str(), "r");
             // Implement the directory listing
-            FILE* pipe = popen("ls -l", "r");
+            //FILE* pipe = popen("ls -l", "r");
             if (!pipe) {
                 perror("Error executing command");
                 const char* response500 = "500 Error executing LIST command.\r\n";
@@ -164,15 +184,14 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
                     cout<<"SERVER: bytes sent to client: "<<bytesSent<<endl;
                 }
                 pclose(pipe);
-                cout<<"Am inchis pipe-ul "<<endl;
                 const char* response226 = "226 Directory send OK.\r\n";
                 send(clientSocket, response226, strlen(response226), 0);
-                cout<<"Am trimis mesajul 226 clientului"<<endl;
             }
 
             // Close the passive data socket
-            //close(passiveClientSocket);
-            //passiveClientSocket = -1;  // Reset to an invalid value
+            close(passiveClientSocket);
+            passiveClientSocket = -1;  // Reset to an invalid value
+            passiveConnectionEstablished=false;
             
         }
 
@@ -184,7 +203,7 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
         send(clientSocket, response221, strlen(response221), 0);
 
         // Închide socket-ul clientului și iese din buclă
-        //close(clientSocket);
+        close(clientSocket);
         break; // ptc iese din while si inchide conexiunea resp thread-ul clientului
         
         }

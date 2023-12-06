@@ -133,39 +133,43 @@ while(true)
         const int bufferSize = 1024;
         char buffer[bufferSize];
         std::string response;
-            
+        
+        // for the 150 response recieve is on the clientSocket!!!
+        int bytesRead = recv(clientSocket, buffer, bufferSize, 0);
+        if (bytesRead <= 0) {
+            perror("Eroare la primirea răspunsului de la server.");
+            close(clientSocket);
+            return -1;
+        }
+        buffer[bytesRead] = '\0';
         while (true) {
             int bytesRead = recv(passiveDataSocket, buffer, bufferSize, 0);
-            /* (bytesRead <= 0) {
+            if (bytesRead < 0) {
                 perror("Eroare la primirea răspunsului de la server.");
                 close(clientSocket);
                 return -1;
-            }*/
-            if (bytesRead < 0) 
-            {
-                // Handle error using errno
-                perror("Error while receiving data from the server");
-                close(clientSocket);
-                return -1;
-            } 
-            else if (bytesRead == 0) 
-            {
-            // Normal closure
-            break;
             }
-
-            cout<<"client: byteadread: "<<bytesRead<<endl;
-            // Null-terminate the received data
-            buffer[bytesRead] = '\0';
-            cout<<buffer<<endl;
-            // Append the received data to the response string
-            response.append(buffer, bytesRead);
-            // Check for the end of the directory listing (226 status code)
-            if (strstr(response.c_str(), "226 Directory send OK.\r\n") != nullptr) {
+            if(bytesRead == 0) {
+                // There is nothing else to read from the passiveDataSocket
+                // The server closed the socket
                 break;
             }
-        }
 
+            // Null-terminate the received data
+            buffer[bytesRead] = '\0';
+            // Append the received data to the response string
+            response.append(buffer, bytesRead);
+        }
+        bytesRead = recv(clientSocket, buffer, bufferSize, 0);
+        if (bytesRead <= 0) {
+            perror("Eroare la primirea răspunsului de la server.");
+            close(clientSocket);
+            return -1;
+        }
+        buffer[bytesRead] = '\0';
+        response.append(buffer, bytesRead);
+        passiveDataSocket = -1;
+        
         // Afișează răspunsul de la server
         std::cout << "Răspuns de la server: " << response << std::endl;
     }
