@@ -8,6 +8,7 @@
 using namespace std;
 
 int createDataSocket(const char* ipAddress, int port) {
+    
     cout<<"[Client]: Se creeaza socket pe IP: "<<ipAddress<<" si PORT: "<<port<<endl;
     int dataSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (dataSocket == -1) {
