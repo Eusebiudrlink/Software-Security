@@ -44,7 +44,6 @@ public:
         for (const auto& user : userList) {
             if (user.username == username) {
                 curentUser = username;
-                loggedIn=true;
                 return true; // Utilizatorul a fost găsit
             }
         }
@@ -52,8 +51,13 @@ public:
     }
 
     bool checkPass(const std::string& password) {
+      
         for (const auto& user : userList) {
-            if (user.username.compare( curentUser) && user.password.compare(password) ) {
+            if ((curentUser== user.username) &&( password==user.password)) {
+
+                  cout<<"parola:"<<password<<" si cea corecta:"<<user.password<<endl;
+                cout<<"parola corecta verificata in users why?"<<endl;
+                loggedIn=true;
                 return true; // Utilizatorul și parola au fost găsite
             }
         }
