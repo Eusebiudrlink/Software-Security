@@ -48,13 +48,16 @@ public:
         file.seekg(0, ios::end);
         int fileSize = file.tellg();
         file.seekg(0, ios::beg);
+        fileSize=htons(fileSize);
+       int bytesSent =send(passiveSocket,&fileSize, sizeof(fileSize), 0);//passiv
+         
+        cout<<"SERVER: bytes sent to client(filesize): "<<bytesSent<<endl;
 
-        send(passiveSocket, &fileSize, sizeof(fileSize), 0);
         char buffer[1024];
-        while (!file.eof()) {
-            file.read(buffer, sizeof(buffer));
-            send(passiveSocket, buffer, file.gcount(), 0);
-        }
+        // while (!file.eof()) {
+        //     file.read(buffer, sizeof(buffer));
+        //     send(passiveSocket, buffer, file.gcount(), 0);//passiv
+        // }
         const char* response226 = "226 Transfer complete\n";
         send(clientSocket, response226, strlen(response226), 0);
         cout<<"File sent from server "<<fileName<<endl;

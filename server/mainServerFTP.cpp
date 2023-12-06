@@ -26,7 +26,7 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
         int passiveClientSocket = -1; // initialize to an invalid value
         bool passiveConnectionEstablished = false;
 
-        string clientUsername;  
+        string clientUsername="alex";  
         fs::path currentPath = fs::current_path();
 
         // Navigate back one step
@@ -106,7 +106,8 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
                 send(clientSocket, response500, strlen(response500), 0);
                 continue;
             }
-            fileManager.sendFile(clientSocket,passiveSocket,parameter);
+            std::string serverFilePath=rootDirectory / clientUsername / parameter;
+            fileManager.sendFile(clientSocket,passiveSocket,serverFilePath.c_str());
            
         }
         else if (strncmp(buffer, "PASV", 4) == 0) 
@@ -176,9 +177,9 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
             
             // if there was a directory provided it would be in the parameter variable
             // Construct the command to list files in the specified directory
-            string directoryName = parameter;
-            cout<<directoryName<<endl;
-            std::string listCommand = "ls -l " + directoryName;
+      
+            cout<<clientDirectory<<endl;
+            std::string listCommand = "ls -l " + clientDirectory;
             FILE* pipe = popen(listCommand.c_str(), "r");
             // Implement the directory listing
             //FILE* pipe = popen("ls -l", "r");
