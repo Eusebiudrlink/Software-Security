@@ -93,10 +93,21 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
                 const char* response530 = "530 Not logged in\r\n";
                 send(clientSocket, response530, strlen(response530), 0);
         }
+        else if (strncmp(buffer, "TYPE", 4) == 0)
+        {
+            fileManager.setType(clientSocket,parameter);
+            cout<<" Modul de transfer dorit: "<<parameter<<endl;
+        }
         else if (strncmp(buffer, "RETR", 4) == 0)
         {
-            fileManager.sendFile(clientSocket,parameter);
-            cout<<"Am trimis file ul "<<parameter<<endl;
+            if(!passiveConnectionEstablished) {
+                cout<<"Command not taken into consideration.\n";
+                const char* response500 = "500 Error executing RETR command.First use PASV\r\n";
+                send(clientSocket, response500, strlen(response500), 0);
+                continue;
+            }
+            fileManager.sendFile(clientSocket,passiveSocket,parameter);
+           
         }
         else if (strncmp(buffer, "PASV", 4) == 0) 
         {

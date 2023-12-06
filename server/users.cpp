@@ -54,9 +54,6 @@ public:
       
         for (const auto& user : userList) {
             if ((curentUser== user.username) &&( password==user.password)) {
-
-                  cout<<"parola:"<<password<<" si cea corecta:"<<user.password<<endl;
-                cout<<"parola corecta verificata in users why?"<<endl;
                 loggedIn=true;
                 return true; // Utilizatorul și parola au fost găsite
             }

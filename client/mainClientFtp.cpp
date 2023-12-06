@@ -91,12 +91,34 @@ while(true)
             close(clientSocket);
             return -1;
     }
-
-    if (strncmp(cmd.c_str() , "RETR", 4) == 0)
+    if (strncmp(cmd.c_str() , "TYPE", 4) == 0)
     {
-             // Așteaptă răspunsul de la server
-            fileManager.receiveFile(clientSocket,parameter);
+         fileManager.setType(parameter);
+    }
+    else if (strncmp(cmd.c_str() , "RETR", 4) == 0)
+    {
+          if (passiveDataSocket == -1) {
+                std::cerr << "Error: PASV command must be executed first." << std::endl;
+                continue;
+            }
+            int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+            if (bytesRead <= 0) {
+            perror("Eroare la primirea răspunsului de la server");
+            close(clientSocket);
+            return -1;
+            }
+            // Afișează răspunsul de la server daca exista fisierul
+            buffer[bytesRead] = '\0';
+            std::cout << "Server: " << buffer;
+            
+            if(strncmp(buffer , "150", 3) == 0)
+            {
+            cout<<"Asteptam file ul " << parameter << endl;
+             // Așteaptă file ul de la server
+            cout<<"Fisierul exista!"<<endl;
+            fileManager.receiveFile(passiveDataSocket,parameter);
             cout<<"Am primit file ul " << parameter << endl;
+            }
     }
     else if(strncmp(cmd.c_str(), "PASV", 4) == 0) {
             // Receive the response from the server
