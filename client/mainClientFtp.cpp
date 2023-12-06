@@ -14,7 +14,7 @@ int createDataSocket(const char* ipAddress, int port) {
         perror("Error creating data socket");
         return -1;
     }
-    // test
+    
     struct sockaddr_in dataAddress{};
     dataAddress.sin_family = AF_INET;
     dataAddress.sin_port = htons(port);
