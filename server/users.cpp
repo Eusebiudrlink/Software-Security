@@ -50,9 +50,7 @@ public:
 
     bool checkUser(const std::string& username) {
         for (const auto& user : userList) {
-            cout<<username<<" and "<<user.username<<endl;
             if (username==user.username) {
-                cout<<"VICTORY: "<<username<<" and "<<user.username<<endl;
                 curentUser = username;
                 return true; // Utilizatorul a fost găsit
             }
@@ -63,8 +61,6 @@ public:
     bool checkPass(const std::string password) {
       
         for (const auto& user : userList) {
-            cout<<curentUser<<" and "<<user.username<<endl;
-            cout<<password<<" and "<<user.password<<"."<<endl;
             
             if ((curentUser==user.username)&&( password==user.password)) {
                     loggedIn=true;
@@ -72,7 +68,6 @@ public:
              
             }
         }
-        curentUser = "";
         return false; // Utilizatorul sau parola nu au fost găsite
     }
     bool getStatusUser(){

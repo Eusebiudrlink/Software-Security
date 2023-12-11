@@ -8,20 +8,39 @@ using namespace std;
 
 class FileManager {
 private:
-  string typeOfTransfer="A";//I - binary and and A - ASCII
+  string typeOfTransfer="I";
 
 public:
-    FileManager() {
-        
-
+    FileManager() {}
+    
+    std::string convertToCRLF(const std::string& data) {
+        // Replace '\n' with '\r\n'
+        std::string convertedData = data;
+        size_t pos = 0;
+            while ((pos = convertedData.find('\n', pos)) != std::string::npos) {
+                convertedData.replace(pos, 1, "\r\n");
+                pos += 2; // Move past the replaced '\r\n'
+            }
+        return convertedData;
     }
 
+    std::string convertToLF(const std::string& data) {
+        // Replace '\r\n' with '\n'
+        std::string convertedData = data;
+        size_t pos = 0;
+            while ((pos = convertedData.find("\r\n", pos)) != std::string::npos) {
+                convertedData.replace(pos, 1, "\n");
+                pos += 1; // Move past the replaced '\n'
+            }
+        return convertedData;
+    }
+    
     void setType(int clientSocket,const std::string& type)
     {
         if(type=="A" || type=="I")
         {
             typeOfTransfer=type;  
-            string response200 = "200 Type set to "+typeOfTransfer+"\r\n";
+            string response200 = "200 Transfer type set to "+typeOfTransfer+"\r\n";
             
             send(clientSocket, response200.c_str(), response200.size(), 0); 
         }
@@ -32,7 +51,11 @@ public:
             cout<<"Unrecognized type of transfer!"<<endl;
         }
     }
+    string getTypeOfTransfer() {
+        return typeOfTransfer;
+    }
     void sendFile(int clientSocket,int passiveSocket, const char* fileName) {
+        // Open the file.
         ifstream file(fileName, ios::binary);
         if (!file.is_open()) {
             cerr << "Error opening file: " << fileName << endl;
@@ -41,28 +64,101 @@ public:
             return;
         }
         
-        const char* response150 = "150 Using BINARY mode data connection for filename\n";
-        send(clientSocket, response150, strlen(response150), 0);
-        cout<<"File opened with succes"<<endl ;
+        const string response150 = "150 Using "+typeOfTransfer+" mode data connection for " + string(fileName) + "\n";
+        send(clientSocket, response150.c_str(), response150.size(), 0);
 
-        file.seekg(0, ios::end);
-        int fileSize = file.tellg();
-        file.seekg(0, ios::beg);
-        fileSize=htons(fileSize);
-       int bytesSent =send(passiveSocket,&fileSize, sizeof(fileSize), 0);//passiv
-         
-        cout<<"SERVER: bytes sent to client(filesize): "<<bytesSent<<endl;
+        cout<<"File opened with succes!"<<endl ;
 
-        char buffer[1024];
-        // while (!file.eof()) {
-        //     file.read(buffer, sizeof(buffer));
-        //     send(passiveSocket, buffer, file.gcount(), 0);//passiv
-        // }
-        const char* response226 = "226 Transfer complete\n";
-        send(clientSocket, response226, strlen(response226), 0);
-        cout<<"File sent from server "<<fileName<<endl;
-
+        // Read and send the file content in chunks
+        const int bufferSize = 1024;
+        char buffer[bufferSize];
+    
+        while (!file.eof()) 
+        {
+            file.read(buffer, bufferSize);
+            int bytesRead = file.gcount();
+            int bytesSent;
+            if(typeOfTransfer == "A") {
+                
+                std::string asciiData = convertToCRLF(buffer);
+                bytesSent = send(passiveSocket, asciiData.c_str(), asciiData.size(), 0);
+            }
+            else {
+              // Send the data to the client using the data socket
+                bytesSent=send(passiveSocket, buffer, bytesRead, 0);  
+            }
+            
+            if (bytesSent < 0) {
+            std::cerr << "Error sending data to server\n";
+            break;
+            }
+            
+            cout<<"Sent buffer:"<<buffer<<" with "<<bytesSent<<" bytesSent\n";
+        }
+        
+        // Close the file and the data connection
         file.close();
+
+        // Send an FTP response indicating successful file transfer
+        const char* response226 = "226 File transfer successful.\r\n";
+        send(clientSocket, response226, strlen(response226), 0);
+        cout<<"Sent response226\n";       
+        
     }
+    
+    void receiveFile(int clientSocket,int dataSocket, const char* fileName) {
+    // Open the file for writing in binary mode
+    // File is created in the currently working directory which is already set
+    std::ofstream file(fileName, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Error opening file for writing: " << fileName << std::endl;
+        return;
+    }
+
+    // Read data from the data connection and write it to the file
+    const int bufferSize = 1024;
+    char buffer[bufferSize];
+
+    while (true) {
+        int bytesRead = recv(dataSocket, buffer, bufferSize, 0);
+        cout<<"Received bytes: "<<bytesRead<<endl;
+        if (bytesRead < 0) {
+            std::cerr << "Error receiving data from server\n";
+            break;
+        }
+
+        if (bytesRead == 0) { // the socket connection is closed
+            // End of file
+            break;
+        }
+
+        if(typeOfTransfer == "A") {
+            // Handle ASCII mode spceific for the Server OS (Linux)
+            std::string asciiData = convertToLF(buffer);
+            
+            // Write the ASCII-transformed data to the file
+            file.write(asciiData.c_str(), asciiData.size());
+        }
+        else {
+        // Binary mode: write the original binary data to the file
+        file.write(buffer, bytesRead);
+        }
+    }
+    
+    
+
+    // Close the file and the data connection
+    file.close();
+    
+
+    const int responseMaxSize = 1024;
+    char response[responseMaxSize];
+    
+    // Send an FTP response indicating successful file transfer
+    const char* response226 = "226 File transfer successful.\r\n";
+    send(clientSocket, response226, strlen(response226), 0);
+    cout<<"Sent response226\n"; 
+}
+
   
 };

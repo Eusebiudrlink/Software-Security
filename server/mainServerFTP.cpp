@@ -20,20 +20,26 @@ Control Socket: Listens on port 21 for command communication.
 Data Socket: Listens on a dynamically assigned port for passive mode data transfer.
 */
 
+/*
+OBS: TYPE ASCII -> on the pipe shoul always be \c\n CRLF format, and on the ends (sender-receiver) they must always check what they receive in their format and depending on their OS (the client and the server don't know about each other's OS)
+*/
     // Funcție pentru a gestiona un client într-un fir de execuție separat
     void clientHandler(int clientSocket, Users& users, FileManager& fileManager) {
-        int passiveSocket = socket(AF_INET, SOCK_STREAM, 0);
-        int passiveClientSocket = -1; // initialize to an invalid value
-        bool passiveConnectionEstablished = false;
+        int passiveSocket;
+        int passiveClientSocket; 
+        bool passiveConnectionEstablished;
 
-        string clientUsername="alex";  
+        string clientUsername="";  
         fs::path currentPath = fs::current_path();
 
         // Navigate back one step
         fs::path parentPath = currentPath.parent_path();
         
         fs::path rootDirectory = parentPath / "files";
-        string clientDirectory="";
+        fs::path clientDirectory="";
+        
+        const char* greeting = "220 Seara buna\n";
+        send(clientSocket, greeting, strlen(greeting), 0);
         
         while(true) {
         // Buclă de ascultare pentru comenzi
@@ -47,27 +53,33 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
 
         // Adaugă terminarea șirului la sfârșitul datelor primite pentru a le interpreta corect ca șir de caractere
         buffer[bytesRead] = '\0';   
-
-        const char* parameter = buffer + 5; // Saltă peste comanda "USER PASS LIST"
+        
+        
+        const char* parameter="";
+        if(bytesRead>4) {
+            parameter = buffer + 5;
+        }
 
         // Identifică comanda primită
-        if (strncmp(buffer, "USER", 4) == 0) {
+        if (strncmp(buffer, "USER", 4) == 0) 
+        {
             // Procesează comanda USER
             std::cout << "Comanda USER primita: " << buffer << std::endl;
             if(users.checkUser(parameter))
             {
                   clientUsername = parameter;
-                  const char* response331 = "331 User name okay, need password.\r\n";
+                  const char* response331 = "331 User name okay, need password.\n";
                   send(clientSocket, response331, strlen(response331), 0);
             }
             else
             {
-                  const char* response530 = "530 Not logged in. Wrong User\r\n";
+                  const char* response530 = "530 Not logged in. Wrong User\n";
                   send(clientSocket, response530, strlen(response530), 0);
             }
             
         } 
-        else if (strncmp(buffer, "PASS", 4) == 0) {
+        else if (strncmp(buffer, "PASS", 4) == 0) 
+        {
             // Procesează comanda PASS
             std::cout << "Comanda PASS primita: " << buffer << std::endl;
             if(users.checkPass(parameter))
@@ -78,42 +90,40 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
                 // Set the working directory to the client's directory
                 chdir(clientDirectory.c_str());
             
-                const char* response230 = "230 User logged in, proceed.\r\n";
+                const char* response230 = "230 User logged in.\n";
                 send(clientSocket, response230, strlen(response230), 0);
+            }
+            else if(clientUsername=="")
+            {
+                const char* response530 = "530 Not logged in. You must use USER command before\n";
+                send(clientSocket, response530, strlen(response530), 0);
             }
             else
             {
-                const char* response530 = "530 Not logged in.Wrong PASS\r\n";
-                  send(clientSocket, response530, strlen(response530), 0);
+                const char* response530 = "530 Not logged in. Wrong PASS\r\n";
+                send(clientSocket, response530, strlen(response530), 0);
             }
 
         }
         else if(!users.getStatusUser())//if it is not logged
         {
-                const char* response530 = "530 Not logged in\r\n";
+                const char* response530 = "530 Not logged in.\n";
                 send(clientSocket, response530, strlen(response530), 0);
         }
         else if (strncmp(buffer, "TYPE", 4) == 0)
         {
+            // Procesează comanda TYPE
+            std::cout << "Comanda TYPE primita: " << buffer << std::endl;
             fileManager.setType(clientSocket,parameter);
-            cout<<" Modul de transfer dorit: "<<parameter<<endl;
-        }
-        else if (strncmp(buffer, "RETR", 4) == 0)
-        {
-            if(!passiveConnectionEstablished) {
-                cout<<"Command not taken into consideration.\n";
-                const char* response500 = "500 Error executing RETR command.First use PASV\r\n";
-                send(clientSocket, response500, strlen(response500), 0);
-                continue;
-            }
-            std::string serverFilePath=rootDirectory / clientUsername / parameter;
-            fileManager.sendFile(clientSocket,passiveSocket,serverFilePath.c_str());
-           
         }
         else if (strncmp(buffer, "PASV", 4) == 0) 
         {
             // Procesează comanda PASV
             std::cout << "Comanda PASV primita: " << buffer << std::endl;
+            
+            passiveSocket = socket(AF_INET, SOCK_STREAM, 0);
+            passiveClientSocket = -1; // socket is not yet assigned a valid file descriptor
+            passiveConnectionEstablished = false;
             
             // Set up the passive socket
             struct sockaddr_in passiveAddress{};
@@ -165,7 +175,7 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
         else if (strncmp(buffer, "LIST", 4) == 0) 
         {
             if(!passiveConnectionEstablished) {
-                cout<<"Command not taken into consideration.\n";
+                cout<<"Passive connection not established.\n";
                 continue;
             }
             
@@ -175,14 +185,11 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
             const char* response150 = "150 Here comes the directory listing.\n";
             send(clientSocket, response150, strlen(response150), 0);
             
-            // if there was a directory provided it would be in the parameter variable
-            // Construct the command to list files in the specified directory
-      
-            cout<<clientDirectory<<endl;
-            std::string listCommand = "ls -l " + clientDirectory;
-            FILE* pipe = popen(listCommand.c_str(), "r");
             // Implement the directory listing
-            //FILE* pipe = popen("ls -l", "r");
+            string directoryName = parameter;
+            std::string listCommand = "ls -l " + directoryName;
+            FILE* pipe = popen(listCommand.c_str(), "r");
+            
             if (!pipe) {
                 perror("Error executing command");
                 const char* response500 = "500 Error executing LIST command.\r\n";
@@ -192,22 +199,71 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
             {
                 char buffer[1024];
                 while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-                    int bytesSent = send(passiveClientSocket, buffer, strlen(buffer), 0);
-                    cout<<"SERVER: bytes sent to client: "<<bytesSent<<endl;
+                    int bytesSent;
+                    if(fileManager.getTypeOfTransfer() == "A") 
+                    {
+                        string asciiData = fileManager.convertToCRLF(buffer);
+                        bytesSent = send(passiveClientSocket, asciiData.c_str(), asciiData.size(), 0);
+                    }
+                    else 
+                    {
+                     bytesSent = send(passiveClientSocket, buffer, strlen(buffer), 0);
+                    }
                 }
                 pclose(pipe);
                 const char* response226 = "226 Directory send OK.\r\n";
                 send(clientSocket, response226, strlen(response226), 0);
             }
 
-            // Close the passive data socket
+            // Close the passive data socket on both sides (the client first, and then the server)
             close(passiveClientSocket);
-            passiveClientSocket = -1;  // Reset to an invalid value
+            close(passiveSocket);
             passiveConnectionEstablished=false;
             
         }
+        else if (strncmp(buffer, "RETR", 4) == 0)
+        {
+            if(!passiveConnectionEstablished) {
+                cout<<"Passive connection not established.\n";
+                continue;
+            }
+            
+            // Procesează comanda RETR
+            std::cout << "Comanda RETR primita: " << buffer << std::endl;
+            fs::path filePath = clientDirectory / parameter;
+            fileManager.sendFile(clientSocket,passiveClientSocket,filePath.c_str());
+            // Close the passive data socket
+            // Because it is TCP -> the socket is closed only after the exchange of data was complete between client and server
+            close(passiveClientSocket);
+            close(passiveSocket);
+            passiveConnectionEstablished=false;
+        }
+        else if (strncmp(buffer, "STOR", 4) == 0) 
+        {
+            if (!passiveConnectionEstablished) {
+                std::cerr << "Passive connection not established." << std::endl;
+                continue;
+            }
 
-        else if (strncmp(buffer, "QUIT", 4) == 0) {
+            // Process the STOR command
+            std::cout << "Command STOR received: " << buffer << std::endl;
+
+            const char* response150 = "150 File status okay; about to open data connection.\n";
+            send(clientSocket, response150, strlen(response150), 0);
+
+            // Extract the file name from the parameter
+            const char* fileName = parameter;
+
+            // Receive the file from the client and save it on the server
+            fileManager.receiveFile(clientSocket, passiveClientSocket, fileName);
+
+            // Close the passive data socket
+            close(passiveClientSocket);
+            close(passiveSocket);
+            passiveConnectionEstablished = false;
+        }
+        else if (strncmp(buffer, "QUIT", 4) == 0) 
+        {
         // Procesează comanda QUIT
         std::cout << "Comanda QUIT primita: " << buffer << std::endl;
 
@@ -222,7 +278,7 @@ Data Socket: Listens on a dynamically assigned port for passive mode data transf
 
         else {
             const char* response500 = "500 Syntax error, command unrecognized.Sau neimplementata!\r\n";
-                  send(clientSocket, response500, strlen(response500), 0);
+            send(clientSocket, response500, strlen(response500), 0);
         }
     
         }
@@ -287,9 +343,4 @@ int main() {
 
     return 0;
 }
-    
-
-
-    
-
-
+ 

@@ -8,14 +8,13 @@
 using namespace std;
 
 int createDataSocket(const char* ipAddress, int port) {
-    
     cout<<"[Client]: Se creeaza socket pe IP: "<<ipAddress<<" si PORT: "<<port<<endl;
     int dataSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (dataSocket == -1) {
         perror("Error creating data socket");
         return -1;
     }
-    
+
     struct sockaddr_in dataAddress{};
     dataAddress.sin_family = AF_INET;
     dataAddress.sin_port = htons(port);
@@ -83,45 +82,40 @@ int main() {
 
 while(true)
 {
-    std::cout << "Scrieti o comanda pentru Serverul FTP:"<<endl; 
+    
+    std::cout << "Scrieti o comanda pentru Serverul FTP:"<<endl;
     std::getline(std::cin, cmd);
-    const char* parameter = cmd.c_str() + 5;
+
+    const char* parameter ="";
+    if(cmd.size()>4) {
+        parameter=cmd.c_str() + 5;
+    }
+    
 
     if (send(clientSocket, cmd.c_str(), cmd.size(), 0) == -1) {
             perror("Eroare la trimiterea comenzii ");
             close(clientSocket);
             return -1;
     }
+
     if (strncmp(cmd.c_str() , "TYPE", 4) == 0)
     {
          fileManager.setType(parameter);
-    }
-    else if (strncmp(cmd.c_str() , "RETR", 4) == 0)
-    {
-          if (passiveDataSocket == -1) {
-                std::cerr << "Error: PASV command must be executed first." << std::endl;
-                continue;
-            }
-            int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
-            if (bytesRead <= 0) {
+         // Așteaptă răspunsul de la server
+        int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesRead <= 0) {
             perror("Eroare la primirea răspunsului de la server");
             close(clientSocket);
             return -1;
-            }
-            // Afișează răspunsul de la server daca exista fisierul
-            buffer[bytesRead] = '\0';
-            std::cout << "Server: " << buffer;
-            
-            if(strncmp(buffer , "150", 3) == 0)
-            {
-            cout<<"Asteptam file ul " << parameter << endl;
-             // Așteaptă file ul de la server
-            cout<<"Fisierul exista!"<<endl;
-            fileManager.receiveFile(passiveDataSocket,parameter);
-            cout<<"Am primit file ul " << parameter << endl;
-            }
+        }
+
+        // Afișează răspunsul de la server
+        buffer[bytesRead] = '\0';
+        std::cout << "Răspuns de la server: " << buffer<<endl;
     }
-    else if(strncmp(cmd.c_str(), "PASV", 4) == 0) {
+    
+    else if(strncmp(cmd.c_str(), "PASV", 4) == 0) 
+    {
             // Receive the response from the server
             int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
             if (bytesRead <= 0) {
@@ -173,8 +167,7 @@ while(true)
                 return -1;
             }
             if(bytesRead == 0) {
-                // There is nothing else to read from the passiveDataSocket
-                // The server closed the socket
+                // There is nothing else to read from the passiveDataSocket. The server closed the socket
                 break;
             }
 
@@ -193,11 +186,71 @@ while(true)
         response.append(buffer, bytesRead);
         passiveDataSocket = -1;
         
+        if (fileManager.getTypeOfTransfer() == "A") {
+            response = fileManager.convertToLF(response);
+        } 
         // Afișează răspunsul de la server
         std::cout << "Răspuns de la server: " << response << std::endl;
     }
-
-        else if (strncmp(cmd.c_str(), "QUIT", 4) == 0) {
+    else if (strncmp(cmd.c_str() , "RETR", 4) == 0)
+    {
+          if (passiveDataSocket == -1) {
+                std::cerr << "Error: PASV command must be executed first." << std::endl;
+                continue;
+          }
+          
+          // Așteaptă răspunsul de la server
+        const int bufferSize = 1024;
+        char buffer[bufferSize];
+        std::string response;
+        
+        // for the 150 response recieve is on the clientSocket!!!
+        int bytesRead = recv(clientSocket, buffer, bufferSize, 0);
+        if (bytesRead <= 0) {
+            perror("Eroare la primirea răspunsului de la server.");
+            close(clientSocket);
+            return -1;
+        }
+        buffer[bytesRead] = '\0';
+        cout<<"Server: "<<buffer<<endl;
+        if(strncmp(buffer , "150", 3) == 0) {
+            cout<<"Waiting for file " << parameter << endl;
+        }
+        else {
+            continue;
+        }
+        fileManager.receiveFile(clientSocket,passiveDataSocket, parameter);
+        passiveDataSocket = -1;
+        
+    }
+    else if (strncmp(cmd.c_str(), "STOR", 4) == 0)
+    {
+        if (passiveDataSocket == -1) {
+                std::cerr << "Error: PASV command must be executed first." << std::endl;
+                continue;
+          }
+          
+        // Așteaptă răspunsul de la server
+        const int bufferSize = 1024;
+        char buffer[bufferSize];
+        std::string response;
+        
+        // for the 150 response recieve is on the clientSocket!!!
+        int bytesRead = recv(clientSocket, buffer, bufferSize, 0);
+        if (bytesRead <= 0) {
+            perror("Eroare la primirea răspunsului de la server.");
+            close(clientSocket);
+            return -1;
+        }
+        buffer[bytesRead] = '\0';
+        cout<<"Server: "<<buffer<<endl;
+        
+        cout<<"Trimitem file-ul " << parameter << endl;
+        fileManager.sendFile(clientSocket,passiveDataSocket,parameter);
+        passiveDataSocket = -1;
+    }
+    else if (strncmp(cmd.c_str(), "QUIT", 4) == 0) 
+    {
         // Așteaptă răspunsul de la server
         int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
         if (bytesRead <= 0) {

@@ -1,3 +1,2 @@
 vlad:vl
 alex:al
-ana:an
