@@ -10,9 +10,6 @@
 #include "fileManager.cpp"
 using namespace std;
 
-//namespace fs = std::experimental::filesystem;
-namespace fs = std::filesystem;
-
 /*
 2 sockets are open on the server side for passive mode:
 
@@ -28,15 +25,7 @@ OBS: TYPE ASCII -> on the pipe shoul always be \c\n CRLF format, and on the ends
         int passiveSocket;
         int passiveClientSocket; 
         bool passiveConnectionEstablished;
-
-        string clientUsername="";  
-        fs::path currentPath = fs::current_path();
-
-        // Navigate back one step
-        fs::path parentPath = currentPath.parent_path();
-        
-        fs::path rootDirectory = parentPath / "files";
-        fs::path clientDirectory="";
+      
         
         const char* greeting = "220 Seara buna\n";
         send(clientSocket, greeting, strlen(greeting), 0);
@@ -67,7 +56,8 @@ OBS: TYPE ASCII -> on the pipe shoul always be \c\n CRLF format, and on the ends
             std::cout << "Comanda USER primita: " << buffer << std::endl;
             if(users.checkUser(parameter))
             {
-                  clientUsername = parameter;
+                  //clientUsername = parameter;
+                  fileManager.setClientUsername(parameter);
                   const char* response331 = "331 User name okay, need password.\n";
                   send(clientSocket, response331, strlen(response331), 0);
             }
@@ -85,15 +75,15 @@ OBS: TYPE ASCII -> on the pipe shoul always be \c\n CRLF format, and on the ends
             if(users.checkPass(parameter))
             {
                 // if the password if ok, we can use update the fake root
-                clientDirectory = rootDirectory / clientUsername;
-                
+                //clientDirectory = rootDirectory / clientUsername;
+                fileManager.setClientDirectory();
                 // Set the working directory to the client's directory
-                chdir(clientDirectory.c_str());
+                //chdir(clientDirectory.c_str());
             
                 const char* response230 = "230 User logged in.\n";
                 send(clientSocket, response230, strlen(response230), 0);
             }
-            else if(clientUsername=="")
+            else if(users.getCurrentUser()=="")
             {
                 const char* response530 = "530 Not logged in. You must use USER command before\n";
                 send(clientSocket, response530, strlen(response530), 0);
@@ -178,48 +168,20 @@ OBS: TYPE ASCII -> on the pipe shoul always be \c\n CRLF format, and on the ends
                 cout<<"Passive connection not established.\n";
                 continue;
             }
-            
-            // Procesează comanda LIST
-            std::cout << "Comanda LIST primita: " << buffer << std::endl;
-            
-            const char* response150 = "150 Here comes the directory listing.\n";
-            send(clientSocket, response150, strlen(response150), 0);
-            
-            // Implement the directory listing
-            string directoryName = parameter;
-            std::string listCommand = "ls -l " + directoryName;
-            FILE* pipe = popen(listCommand.c_str(), "r");
-            
-            if (!pipe) {
-                perror("Error executing command");
-                const char* response500 = "500 Error executing LIST command.\r\n";
-                send(clientSocket, response500, strlen(response500), 0);
-            } 
-            else 
-            {
-                char buffer[1024];
-                while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
-                    int bytesSent;
-                    if(fileManager.getTypeOfTransfer() == "A") 
-                    {
-                        string asciiData = fileManager.convertToCRLF(buffer);
-                        bytesSent = send(passiveClientSocket, asciiData.c_str(), asciiData.size(), 0);
-                    }
-                    else 
-                    {
-                     bytesSent = send(passiveClientSocket, buffer, strlen(buffer), 0);
-                    }
-                }
-                pclose(pipe);
-                const char* response226 = "226 Directory send OK.\r\n";
-                send(clientSocket, response226, strlen(response226), 0);
-            }
-
-            // Close the passive data socket on both sides (the client first, and then the server)
-            close(passiveClientSocket);
+            fileManager.listFiles(clientSocket,passiveClientSocket);
             close(passiveSocket);
             passiveConnectionEstablished=false;
+        }
+        else if (strncmp(buffer, "CWD", 3) == 0)
+        {
             
+            // Procesează comanda RETR
+            std::cout << "Comanda CWD primita " << buffer << std::endl;
+           parameter = buffer + 4;
+            fileManager.setCurrentFolder(clientSocket, parameter);
+            // Close the passive data socket
+            // Because it is TCP -> the socket is closed only after the exchange of data was complete between client and server
+
         }
         else if (strncmp(buffer, "RETR", 4) == 0)
         {
@@ -230,8 +192,8 @@ OBS: TYPE ASCII -> on the pipe shoul always be \c\n CRLF format, and on the ends
             
             // Procesează comanda RETR
             std::cout << "Comanda RETR primita: " << buffer << std::endl;
-            fs::path filePath = clientDirectory / parameter;
-            fileManager.sendFile(clientSocket,passiveClientSocket,filePath.c_str());
+           // fs::path filePath = clientDirectory / parameter;
+            fileManager.sendFile(clientSocket,passiveClientSocket,parameter);
             // Close the passive data socket
             // Because it is TCP -> the socket is closed only after the exchange of data was complete between client and server
             close(passiveClientSocket);

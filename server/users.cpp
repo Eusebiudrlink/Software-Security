@@ -73,4 +73,8 @@ public:
     bool getStatusUser(){
         return loggedIn;
     }
+    string getCurrentUser(){
+        return curentUser;
+    }
+
 };

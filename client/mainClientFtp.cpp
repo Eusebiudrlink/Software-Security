@@ -45,7 +45,7 @@ void extractValues(const char* input, int& h1, int& h2, int& h3, int& h4, int& p
 
 
 int main() {
-    const char* serverIP = "127.0.0.1"; // Adresa IP a serverului
+    const char* serverIP = "192.168.88.59"; // Adresa IP a serverului
     const int serverPort = 21;           // Portul standard FTP
 
     // Crează un socket pentru client
@@ -73,9 +73,20 @@ int main() {
         close(clientSocket);
         return -1;
     }
+  const int responseMaxSize = 1024;
+    char response[responseMaxSize];
+    int responseBytesRead = recv(clientSocket, response, responseMaxSize, 0);
+    if (responseBytesRead <= 0) {
+        perror("Eroare la primirea răspunsului de la server.");
+        close(clientSocket);
+        return -1;
+    }
+    response[responseBytesRead] = '\0';
+    // Afișează răspunsul de la server
+    std::cout << "Răspuns de la server: " << response << std::endl;
 
     std::string cmd;
-    char buffer[1024];
+    char buffer[responseMaxSize];
     FileManager fileManager;
     
     int passiveDataSocket = -1; // Initialize to an invalid value
@@ -268,7 +279,7 @@ while(true)
         std::cout << "Deconectare..." << endl;
         return 0;
         }
-        else{
+    else{
         // Așteaptă răspunsul de la server
         int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
         if (bytesRead <= 0) {
